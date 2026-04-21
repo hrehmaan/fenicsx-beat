@@ -44,41 +44,6 @@ geo = cardiac_geometries.geometry.Geometry.from_folder(
 )
 mesh_unit = "cm"  # The unit of the mesh is in cm
 
-# Now we need to redefine the markers to have so that facets on the endo- and epicardium combine both
-# free wall and the septum.
-
-markers = {"ENDO_LV": [1, 2], "ENDO_RV": [2, 2], "BASE": [3, 2], "EPI": [4, 2]}
-marker_values = geo.ffun.values.copy()
-marker_values[
-    np.isin(geo.ffun.indices, geo.ffun.find(geo.markers["LV_ENDO_FW"][0]))
-] = markers["ENDO_LV"][0]
-marker_values[np.isin(geo.ffun.indices, geo.ffun.find(geo.markers["LV_SEPTUM"][0]))] = (
-    markers["ENDO_LV"][0]
-)
-marker_values[
-    np.isin(geo.ffun.indices, geo.ffun.find(geo.markers["RV_ENDO_FW"][0]))
-] = markers["ENDO_RV"][0]
-marker_values[np.isin(geo.ffun.indices, geo.ffun.find(geo.markers["RV_SEPTUM"][0]))] = (
-    markers["ENDO_RV"][0]
-)
-marker_values[np.isin(geo.ffun.indices, geo.ffun.find(geo.markers["BASE"][0]))] = (
-    markers["BASE"][0]
-)
-marker_values[np.isin(geo.ffun.indices, geo.ffun.find(geo.markers["LV_EPI_FW"][0]))] = (
-    markers["EPI"][0]
-)
-marker_values[np.isin(geo.ffun.indices, geo.ffun.find(geo.markers["RV_EPI_FW"][0]))] = (
-    markers["EPI"][0]
-)
-geo.markers = markers
-ffun = dolfinx.mesh.meshtags(
-    geo.mesh,
-    geo.ffun.dim,
-    geo.ffun.indices,
-    marker_values,
-)
-geo.ffun = ffun
-
 
 # Let us plot the geometry
 
@@ -104,8 +69,8 @@ epi_marker = 2
 endo_epi = beat.utils.expand_layer_biv(
     V=V,
     ft=geo.ffun,
-    endo_lv_marker=geo.markers["ENDO_LV"][0],
-    endo_rv_marker=geo.markers["ENDO_RV"][0],
+    endo_lv_marker=geo.markers["LV"][0],
+    endo_rv_marker=geo.markers["RV"][0],
     epi_marker=geo.markers["EPI"][0],
     endo_size=0.3,
     epi_size=0.3,
@@ -282,7 +247,7 @@ I_s = [
         start=0.0,
         duration=1.0,
     )
-    for marker in [geo.markers["ENDO_LV"][0], geo.markers["ENDO_RV"][0]]
+    for marker in [geo.markers["LV"][0], geo.markers["RV"][0]]
 ]
 # Now we are ready to create the PDE solver.
 
