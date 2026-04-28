@@ -17,7 +17,7 @@ import gotranx
 import scifem
 import beat
 import pyvista
-from dolfinx.io import VTXMeshPolicy 
+from dolfinx.io import VTXMeshPolicy
 
 import beat.postprocess
 from beat.geometry import Geometry
