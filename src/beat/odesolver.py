@@ -48,6 +48,11 @@ class ODESystemSolver:
     fun: Callable
     states: npt.NDArray
     parameters: npt.NDArray
+    log_timings: bool = False
+
+    def __post_init__(self) -> None:
+        self._step_counter = 0
+        self._timing_totals: dict[str, float] = {}
 
     @property
     def num_points(self) -> int:
@@ -58,7 +63,35 @@ class ODESystemSolver:
         return self.states.shape[0]
 
     def step(self, t0: float, dt: float) -> None:
-        self.states[:] = self.fun(states=self.states, t=t0, parameters=self.parameters, dt=dt)
+        step_start = time.perf_counter()
+
+        tic = time.perf_counter()
+        updated_states = self.fun(
+            states=self.states,
+            t=t0,
+            parameters=self.parameters,
+            dt=dt,
+        )
+        function_call_time = time.perf_counter() - tic
+
+        tic = time.perf_counter()
+        self.states[:] = updated_states
+        state_update_time = time.perf_counter() - tic
+
+        timings = {
+            "ode_function_call": function_call_time,
+            "ode_state_update": state_update_time,
+            "ode_total_step": time.perf_counter() - step_start,
+        }
+
+        for name, value in timings.items():
+            self._timing_totals[name] = self._timing_totals.get(name, 0.0) + value
+
+        self._step_counter += 1
+
+    def timing_summary(self) -> dict[str, float]:
+        """Return accumulated timing information for this ODE system."""
+        return dict(self._timing_totals)
 
 
 class BaseDolfinODESolver(abc.ABC):
@@ -123,6 +156,8 @@ class DolfinODESolver(BaseDolfinODESolver):
     fun: Callable
     num_states: int
     v_index: int = 0
+    log_timings: bool = False
+    timing_log_frequency: int = 1
 
     def __post_init__(self):
         if np.shape(self.init_states) == self.shape:
@@ -135,6 +170,7 @@ class DolfinODESolver(BaseDolfinODESolver):
             fun=self.fun,
             states=self._values,
             parameters=self.parameters,
+            log_timings=self.log_timings,
         )
         self._initialize_metadata()
 
@@ -165,6 +201,10 @@ class DolfinODESolver(BaseDolfinODESolver):
 
     def step(self, t0: float, dt: float):
         self._ode.step(t0=t0, dt=dt)
+
+    def timing_summary(self) -> dict[str, float]:
+        """Return accumulated timing information for the inner ODE system."""
+        return self._ode.timing_summary()
 
     @property
     def full_values(self):
@@ -241,6 +281,7 @@ class DolfinMultiODESolver(BaseDolfinODESolver):
                 fun=self.fun[marker],
                 states=self._values[marker],
                 parameters=self.parameters[marker],
+                log_timings=self.log_timings,
             )
         self._initialize_metadata()
 
@@ -319,6 +360,16 @@ class DolfinMultiODESolver(BaseDolfinODESolver):
             f"dt={dt:.5f}, "
             f"{timing_text}",
         )
+
+    def internal_timing_summary(self) -> dict[str, float]:
+        """Return marker-wise accumulated timing for inner ODE system steps."""
+        summary: dict[str, float] = {}
+
+        for marker, ode in self._odes.items():
+            for name, value in ode.timing_summary().items():
+                summary[f"marker_{marker}_{name}"] = value
+
+        return summary
 
     def timing_summary(self) -> dict[str, float]:
         """Return accumulated timing information for all completed ODE steps."""
